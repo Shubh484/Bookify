@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Meeting Room Booking System
+
+A full-stack Next.js application that provides a modern, interactive meeting room booking experience with robust concurrency safeguards.
+
+## Features
+
+- **Modern Glassmorphism UI**: Built with Tailwind CSS, featuring deep colors, blurs, and interactive micro-animations.
+- **Robust Concurrency (Section 3.1)**: Double-booking is mathematically impossible due to a PostgreSQL `UNIQUE` constraint on a `SlotLock` table.
+- **Refund Logic (Section 3.2)**: Cancellations >2 hours before the meeting start time are refundable.
+- **Extended Requirements Implemented (Section 4)**:
+  - **4.2 Waitlist & Auto-Promotion**: Waitlist entries can be created for booked slots. When a booking is cancelled, the first waitlisted user is atomically promoted and booked.
+  - **4.5 Daily Quota**: Users are restricted to booking a maximum of 4 hours per day. This is enforced at the transaction level.
+
+## Tech Stack
+
+- **Framework**: Next.js 14 (App Router)
+- **Database**: PostgreSQL (Docker container)
+- **ORM**: Prisma (v6)
+- **Styling**: Tailwind CSS
 
 ## Getting Started
 
-First, run the development server:
+1. **Install Dependencies**
+   ```bash
+   npm install
+   ```
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+2. **Start the Database**
+   ```bash
+   docker compose up -d
+   ```
+
+3. **Initialize Database**
+   ```bash
+   npx prisma migrate dev --name init
+   npx ts-node prisma/seed.ts
+   ```
+
+4. **Run the Development Server**
+   ```bash
+   npm run dev
+   ```
+
+5. **Concurrency Test**
+   While the server is running, you can run the provided demo script to fire two identical requests at the same time:
+   ```bash
+   ./scripts/test-concurrency.sh
+   ```
+
+## Architecture Notes
+
+The double-booking prevention relies on the `SlotLock` model in Prisma:
+
+```prisma
+model SlotLock {
+  id        String   @id @default(cuid())
+  roomId    String
+  date      DateTime @db.Date
+  slotStart String   // "09:00"
+  bookingId String
+
+  @@unique([roomId, date, slotStart], name: "room_slot_unique")
+}
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+By using `prisma.$transaction()`, we insert the booking and all related `SlotLock` rows atomically. If any slot is already taken, the unique constraint violation rolls back the entire transaction.
+# Bookify
