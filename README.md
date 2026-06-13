@@ -65,3 +65,4 @@ model SlotLock {
 
 By using `prisma.$transaction()`, we insert the booking and all related `SlotLock` rows atomically. If any slot is already taken, the unique constraint violation rolls back the entire transaction.
 # Bookify
+# Bookify
