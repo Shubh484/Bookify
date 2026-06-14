@@ -46,31 +46,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid time range' }, { status: 400 });
     }
 
-    // Extended 4.5: Per-user daily quota check (4 hours = 8 slots)
-    // We check how many slots are already booked by this user on this day
-    const userBookingsToday = await prisma.booking.findMany({
-      where: {
-        email,
-        date: bookingDate,
-        status: 'CONFIRMED',
-      },
-      select: { startTime: true, endTime: true },
-    });
-
-    let existingSlotsCount = 0;
-    for (const b of userBookingsToday) {
-      existingSlotsCount += getSlotList(b.startTime, b.endTime).length;
-    }
-
-    if (existingSlotsCount + slots.length > 8) {
-      return NextResponse.json({ 
-        error: `Daily quota exceeded. You have already booked ${existingSlotsCount * 0.5} hours today. Maximum is 4 hours.` 
-      }, { status: 400 });
-    }
-
-    // Use transaction to create booking and slot locks atomically
-    // The UNIQUE constraint on SlotLock will cause the transaction to fail if any slot is taken
+    // Use transaction to create booking and slot locks atomically.
+    // The quota check is INSIDE the transaction so two concurrent requests
+    // from the same user are serialised — at most one can succeed if the
+    // quota would be exceeded.
+    // The UNIQUE constraint on SlotLock will cause the transaction to fail
+    // if any slot is already taken (Section 3.1 double-booking prevention).
     const result = await prisma.$transaction(async (tx) => {
+      // Extended 4.5: Per-user daily quota check (4 hours = 8 × 30-min slots).
+      // Performed inside the transaction so concurrent requests are serialised.
+      const userBookingsToday = await tx.booking.findMany({
+        where: {
+          email,
+          date: bookingDate,
+          status: 'CONFIRMED',
+        },
+        select: { startTime: true, endTime: true },
+      });
+
+      let existingSlotsCount = 0;
+      for (const b of userBookingsToday) {
+        existingSlotsCount += getSlotList(b.startTime, b.endTime).length;
+      }
+
+      if (existingSlotsCount + slots.length > 8) {
+        throw new QuotaExceededError(
+          `Daily quota exceeded. You have already booked ${existingSlotsCount * 0.5} hours today. Maximum is 4 hours.`
+        );
+      }
+
       const booking = await tx.booking.create({
         data: {
           roomId,
@@ -98,10 +102,26 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error('Error creating booking:', error);
+
+    if (error instanceof QuotaExceededError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     // P2002 is Prisma's unique constraint violation error code
     if (error.code === 'P2002') {
-      return NextResponse.json({ error: 'One or more selected slots are already booked.' }, { status: 409 });
+      return NextResponse.json(
+        { error: 'One or more selected slots are already booked.' },
+        { status: 409 }
+      );
     }
     return NextResponse.json({ error: 'Failed to create booking' }, { status: 500 });
+  }
+}
+
+// Custom error class so we can distinguish quota errors from other errors
+class QuotaExceededError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'QuotaExceededError';
   }
 }
