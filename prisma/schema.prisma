@@ -3,12 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model Room {
-  id        String    @id @default(cuid())
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
   name      String
   location  String    // e.g., "Floor 3, Wing A"
   capacity  Int
@@ -17,10 +17,10 @@ model Room {
 }
 
 model Booking {
-  id        String        @id @default(cuid())
+  id        String        @id @default(auto()) @map("_id") @db.ObjectId
   room      Room          @relation(fields: [roomId], references: [id])
-  roomId    String
-  date      DateTime      @db.Date
+  roomId    String        @db.ObjectId
+  date      DateTime
   startTime String        // "09:00", "09:30", etc.
   endTime   String        // "10:00", "10:30", etc.
   bookedBy  String        // Name
@@ -43,26 +43,26 @@ model Booking {
 // One row per 30-minute slot held by a booking.
 // The UNIQUE constraint makes it physically impossible to double-book.
 model SlotLock {
-  id        String   @id @default(cuid())
-  roomId    String
-  date      DateTime @db.Date
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  roomId    String   @db.ObjectId
+  date      DateTime
   slotStart String   // "09:00", "09:30", etc.
   booking   Booking  @relation(fields: [bookingId], references: [id])
-  bookingId String
+  bookingId String   @db.ObjectId
 
   @@unique([roomId, date, slotStart], name: "room_slot_unique")
 }
 
 // Extended Req 4.2: Waitlist
 model WaitlistEntry {
-  id        String   @id @default(cuid())
-  roomId    String
-  date      DateTime @db.Date
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  roomId    String   @db.ObjectId
+  date      DateTime
   slotStart String   // The specific slot they want
   userName  String
   email     String
   booking   Booking? @relation(fields: [bookingId], references: [id])
-  bookingId String?  // Linked when auto-promoted
+  bookingId String?  @db.ObjectId  // Linked when auto-promoted
   position  Int      // Queue position
   status    WaitlistStatus @default(WAITING)
   createdAt DateTime @default(now())

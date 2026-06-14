@@ -1,14 +1,15 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: meeting_rooms
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+  mongodb:
+    image: mongo:latest
     ports:
-      - "5432:5432"
+      - "27018:27018"
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27018"]
+    healthcheck:
+      test: test $$(echo "rs.initiate({_id:'rs0',members:[{_id:0,host:\"localhost:27018\"}]}).ok || rs.status().ok" | mongosh --port 27018 --quiet) -eq 1
+      interval: 10s
+      start_period: 30s
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - mongodata:/data/db
 
 volumes:
-  pgdata:
+  mongodata:
