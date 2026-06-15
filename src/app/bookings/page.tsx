@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { format, parse, isAfter } from 'date-fns';
+import { format, parse } from 'date-fns';
 
 type Booking = {
   id: string;
@@ -67,11 +67,7 @@ export default function BookingsPage() {
   };
 
   const isCancellable = (b: Booking) => {
-    if (b.status !== 'CONFIRMED') return false;
-    // Check if it's in the future
-    const dateStr = b.date.split('T')[0];
-    const bookingStart = parse(`${dateStr} ${b.startTime}`, 'yyyy-MM-dd HH:mm', new Date());
-    return isAfter(bookingStart, new Date());
+    return b.status === 'CONFIRMED';
   };
 
   return (
