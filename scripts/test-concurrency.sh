@@ -5,7 +5,7 @@
 
 set -e
 
-BASE_URL="${1:-http://localhost:3000}"
+BASE_URL="${1:-https://bookify-two-snowy.vercel.app}"
 
 echo "🔍 Fetching rooms..."
 ROOM_ID=$(curl -sf "$BASE_URL/api/rooms" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)

@@ -41,6 +41,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid date format' }, { status: 400 });
     }
 
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+    const [year, month, day] = date.split('-').map(Number);
+    const bookingDateTime = new Date(year, month - 1, day, startHour, startMinute);
+
+    if (bookingDateTime < new Date()) {
+      return NextResponse.json({ error: 'Cannot book a slot in the past' }, { status: 400 });
+    }
+
     const slots = getSlotList(startTime, endTime);
     if (slots.length === 0) {
       return NextResponse.json({ error: 'Invalid time range' }, { status: 400 });

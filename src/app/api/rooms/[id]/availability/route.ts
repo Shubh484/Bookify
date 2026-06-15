@@ -37,12 +37,21 @@ export async function GET(
 
     const occupiedMap = new Map(occupiedLocks.map(l => [l.slotStart, l.bookingId]));
 
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const now = new Date();
+
     // Construct availability array
-    const availability = allSlots.map(slotStart => ({
-      slotStart,
-      available: !occupiedMap.has(slotStart),
-      bookingId: occupiedMap.get(slotStart) || null,
-    }));
+    const availability = allSlots.map(slotStart => {
+      const [startHour, startMinute] = slotStart.split(':').map(Number);
+      const slotDateTime = new Date(year, month - 1, day, startHour, startMinute);
+      const isPast = slotDateTime < now;
+
+      return {
+        slotStart,
+        available: !isPast && !occupiedMap.has(slotStart),
+        bookingId: occupiedMap.get(slotStart) || null,
+      };
+    });
 
     return NextResponse.json(availability);
   } catch (error) {
